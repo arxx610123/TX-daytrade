@@ -1,30 +1,26 @@
-# technical_indicators.py
 import pandas as pd
 import numpy as np
 
-def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    在K線DataFrame中新增技術指標
-    必須包含 ['Open', 'High', 'Low', 'Close', 'Volume'] 欄位
-    """
-
-    # === 移動平均線 (MA) ===
+# === 技術指標計算模組 ===
+def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    # 移動平均線
     df['MA5'] = df['Close'].rolling(window=5).mean()
-    df['MA10'] = df['Close'].rolling(window=10).mean()
+    df['MA20'] = df['Close'].rolling(window=20).mean()
 
-    # === RSI (14) ===
+    # RSI 計算
     delta = df['Close'].diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    roll_up = pd.Series(gain).rolling(14).mean()
-    roll_down = pd.Series(loss).rolling(14).mean()
-    RS = roll_up / (roll_down + 1e-10)  # 避免除以零
-    df['RSI14'] = 100.0 - (100.0 / (1.0 + RS))
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
 
-    # === MACD (12, 26, 9) ===
-    exp1 = df['Close'].ewm(span=12, adjust=False).mean()
-    exp2 = df['Close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = exp1 - exp2
+    # MACD
+    ema12 = df['Close'].ewm(span=12, adjust=False).mean()
+    ema26 = df['Close'].ewm(span=26, adjust=False).mean()
+    df['MACD'] = ema12 - ema26
     df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+
+    # 替換 inf 為 NaN，防止除以 0 或異常值
+    df = df.replace([np.inf, -np.inf], np.nan)
 
     return df
