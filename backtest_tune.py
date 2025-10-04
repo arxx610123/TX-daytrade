@@ -1,150 +1,64 @@
-import sys
-import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import SGDClassifier
-from technical_indicators import add_indicators
+from technical_indicators import add_technical_indicators
 
-def load_and_clean_data(file_path):
+# === 資料讀取 ===
+def load_data(file_path):
     print(">>> 開始讀取資料")
-
-    if not os.path.exists(file_path):
-        print(f"❌ 找不到檔案: {file_path}")
-        sys.exit(1)
-
-    # 嘗試多種日期欄位名稱
-    date_cols = ["Datetime", "datetime", "date", "time"]
-    try:
-        df = pd.read_csv(file_path)
-    except Exception as e:
-        print(f"❌ 讀檔失敗: {e}")
-        sys.exit(1)
-
-    # 找到正確的日期欄位並轉換
-    found_date = None
-    for col in date_cols:
-        if col in df.columns:
-            try:
-                df[col] = pd.to_datetime(df[col])
-                df.rename(columns={col: "Datetime"}, inplace=True)
-                found_date = "Datetime"
-                break
-            except Exception:
-                continue
-    if not found_date:
-        print("⚠️ 找不到日期欄位，將使用索引代替")
-        df["Datetime"] = pd.date_range(start="2000-01-01", periods=len(df), freq="T")
-
-    # 欄位統一名稱
-    col_map = {c.lower(): c for c in df.columns}
-    rename_dict = {}
-    for std in ["open", "high", "low", "close", "volume"]:
-        if std in col_map:
-            rename_dict[col_map[std]] = std.capitalize()
-    df.rename(columns=rename_dict, inplace=True)
-
-    # 確保必要欄位存在
-    required_cols = ["Datetime", "Open", "High", "Low", "Close", "Volume"]
-    for col in required_cols:
-        if col not in df.columns:
-            print(f"❌ 缺少必要欄位: {col}")
-            sys.exit(1)
-
+    df = pd.read_csv(file_path)
     print(f">>> 成功讀取 {len(df)} 筆資料，欄位: {list(df.columns)}")
-
-    # 去除缺失值
-    df.dropna(inplace=True)
-
     return df
 
+# === 加入技術指標 & 標註標籤 ===
+def prepare_features(df):
+    df = add_technical_indicators(df)
+    # 移除含 NaN 的 target
+    df = df.replace([np.inf, -np.inf], np.nan)
+    
+    # 建立漲跌標籤
+    df['Target'] = np.where(df['Close'].shift(-1) > df['Close'], 1, 0)
 
+    # 去除 NaN（僅限必要的）
+    df = df.dropna(subset=['Target'])
+    return df
+
+# === GridSearch 調參 ===
 def parameter_tuning(df):
     print(">>> 開始進行 GridSearchCV 調參")
 
-    # 加入技術指標
-    df = add_indicators(df)
+    feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA5', 'MA20', 'RSI', 'MACD', 'Signal']
+    X = df[feature_cols]
+    y = df['Target']
 
-    # 目標 (漲跌 >0 = 1, else 0)
-    df["Return"] = df["Close"].pct_change().fillna(0)
-    df["Target"] = (df["Return"] > 0).astype(int)
-
-    features = df[["MA5", "MA10", "RSI14", "MACD", "Signal"]]
-    target = df["Target"]
-
-    if len(df) < 10:
-        print("❌ 資料不足，無法調參")
-        sys.exit(1)
-
+    # Pipeline 包含 NaN 處理 + 標準化 + SGD 模型
     pipeline = Pipeline([
-        ("scaler", StandardScaler()),
-        ("clf", SGDClassifier(random_state=42, max_iter=1000, tol=1e-3))
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler()),
+        ('clf', SGDClassifier(random_state=42))
     ])
 
     param_grid = {
-        "clf__loss": ["hinge", "log_loss"],
-        "clf__penalty": ["l2", "l1"],
-        "clf__alpha": [0.0001, 0.001, 0.01]
+        'clf__loss': ['log_loss', 'hinge'],
+        'clf__alpha': [0.0001, 0.001, 0.01],
+        'clf__penalty': ['l2', 'l1'],
     }
 
     grid = GridSearchCV(pipeline, param_grid, cv=3, n_jobs=-1, verbose=1)
-    grid.fit(features, target)
+    grid.fit(X, y)
 
-    print(">>> 調參完成 ✅")
-    print("最佳參數:", grid.best_params_)
-    print("最佳準確率:", round(grid.best_score_, 4))
-
+    print(">>> 最佳參數:", grid.best_params_)
+    print(">>> 最佳分數:", grid.best_score_)
     return grid.best_estimator_
 
-
-def backtest(df, model):
-    print(">>> 開始模擬交易回測")
-
-    df = add_indicators(df)
-    df["Return"] = df["Close"].pct_change().fillna(0)
-    df["Target"] = (df["Return"] > 0).astype(int)
-
-    features = df[["MA5", "MA10", "RSI14", "MACD", "Signal"]]
-    preds = model.predict(features)
-
-    balance = 1_000_000
-    position = None
-    trade_log = []
-
-    for i in range(len(df)):
-        price = df["Close"].iloc[i]
-        ts = df["Datetime"].iloc[i]
-        signal = preds[i]
-
-        if signal == 1 and position is None:
-            position = price
-            trade_log.append((ts, "BUY", float(price)))
-        elif signal == 0 and position is not None:
-            profit = price - position
-            balance += profit
-            trade_log.append((ts, "SELL", float(price)))
-            position = None
-
-    print(">>> 回測完成 ✅")
-    print(f"總報酬: {balance:.2f}")
-    print(f"交易次數: {len(trade_log)}")
-    print("=== 交易紀錄 ===")
-    for log in trade_log:
-        print(log)
-
-
+# === 主程式 ===
 if __name__ == "__main__":
     print(">>> backtest_tune.py 啟動")
-
-    if len(sys.argv) < 2:
-        print("❌ 請提供 CSV 檔案路徑")
-        sys.exit(1)
-
-    file_path = sys.argv[1]
-    df = load_and_clean_data(file_path)
+    df = load_data("txf_5m_day_20251002.csv")
+    df = prepare_features(df)
     model = parameter_tuning(df)
-    backtest(df, model)
-
-    print(">>> backtest_tune.py 結束")
+    print(">>> GridSearch 完成，模型可用於後續 partial_fit() 更新")
