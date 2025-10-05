@@ -1,0 +1,24 @@
+# 忽略 Python 暫存檔
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略 Jupyter 檔
+*.ipynb_checkpoints
+
+# 忽略原始數據 RAW
+TXF_RAW_TO_5M/RAW_ALL/*
+!TXF_RAW_TO_5M/RAW_ALL/.keep
+
+# 忽略轉檔後的 5m 檔
+data/5m_day/*
+!data/5m_day/.keep
+
+# 忽略所有 CSV（保護數據不會上傳到 GitHub）
+*.csv
+!*.keep
+
+# 系統檔案
+.DS_Store
+Thumbs.db
