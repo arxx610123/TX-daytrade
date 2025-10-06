@@ -11,13 +11,6 @@ __pycache__/
 TXF_RAW_TO_5M/RAW_ALL/*
 !TXF_RAW_TO_5M/RAW_ALL/.keep
 
-# 保留前 5 個 RAW 測試檔
-!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_01.csv
-!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_02.csv
-!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_03.csv
-!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_04.csv
-!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_05.csv
-
 # 忽略轉檔後的 5m 檔
 data/5m_day/*
 !data/5m_day/.keep
@@ -25,6 +18,13 @@ data/5m_day/*
 # 忽略所有 CSV（保護數據不會上傳到 GitHub）
 *.csv
 !*.keep
+
+# ✅ 強制保留前 5 個 RAW 測試檔（必須放在最後）
+!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_01.csv
+!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_02.csv
+!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_03.csv
+!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_04.csv
+!TXF_RAW_TO_5M/RAW_ALL/Daily_2025_09_05.csv
 
 # 忽略錯誤輸出
 error.txt
