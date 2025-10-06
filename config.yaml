@@ -1,0 +1,33 @@
+# config.yaml - Arxx-daytrade 全域設定
+
+general:
+  log_level: INFO
+  random_seed: 42
+
+trend_brain:
+  ma_short: 5
+  ma_long: 20
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  adx_threshold: 25
+
+reversal_brain:
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  bollinger_period: 20
+  bollinger_std: 2
+
+volatility_brain:
+  atr_period: 14
+  volatility_threshold: 1.5   # 倍數，代表波動率超過多少才允許進場
+
+volume_brain:
+  volume_ma_period: 20
+  volume_spike_ratio: 2.0     # 當前成交量大於均量的倍數
+
+risk_veto:
+  max_daily_loss: -2000       # 單日最大允許損失 (NTD)
+  stop_loss_atr_multiplier: 2.0
+  long_shadow_threshold: 0.6  # K棒影線比例（高於此值判定風險）
